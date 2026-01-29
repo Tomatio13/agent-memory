@@ -3,9 +3,11 @@
 # long_term.sh - Manage long-term memory (MEMORY.md)
 #
 # Usage:
-#   long_term.sh add "section" "content"  - Add content to a section
+#   long_term.sh add "section" "title" "contents"  - Add a formatted entry
 #   long_term.sh read                    - Read entire MEMORY.md
 #   long_term.sh search "keyword"        - Search MEMORY.md
+#   long_term.sh tree                    - Show heading tree of MEMORY.md
+#   long_term.sh section "heading"       - Extract a section by heading
 #
 
 set -e
@@ -24,19 +26,14 @@ if [ ! -f "$MEMORY_FILE" ]; then
 # Long-term Memory
 
 ## User Preferences
-<!-- Add user preferences here -->
-
-## Important Decisions
-<!-- Add important decisions here -->
-
-## Key Contacts
-<!-- Add key contacts here -->
+### Title: Example
+- time: YYYY/MM/DD HH:MM
+- Contents: details
 
 ## Project Context
-<!-- Add project context here -->
-
-## Troubleshooting
-<!-- Add troubleshooting notes here -->
+### Title: Example
+- time: YYYY/MM/DD HH:MM
+- Contents: details
 EOF
 fi
 
@@ -45,51 +42,60 @@ COMMAND="$1"
 
 case "$COMMAND" in
     add)
-        if [ $# -lt 3 ]; then
-            echo "Usage: long_term.sh add \"section\" \"content\"" >&2
-            echo "Example: long_term.sh add \"User Preferences\" \"Prefers TypeScript over JavaScript\"" >&2
+        if [ $# -lt 4 ]; then
+            echo "Usage: long_term.sh add \"section\" \"title\" \"contents\"" >&2
+            echo "Example: long_term.sh add \"Project Context\" \"Created memory skill\" \"Implemented 2-layer memory system.\"" >&2
             exit 1
         fi
 
         SECTION="$2"
-        CONTENT="$3"
-        TIMESTAMP=$(date +%Y-%m-%d)
+        TITLE="$3"
+        shift 3
+        CONTENTS="$*"
+        TIMESTAMP=$(date +%Y/%m/%d' '%H:%M)
 
-        # Check if section exists
-        if grep -q "^## $SECTION" "$MEMORY_FILE"; then
-            # Section exists - append after it
-            # Create temp file
+        if grep -q "^## $SECTION$" "$MEMORY_FILE"; then
             TEMP_FILE=$(mktemp)
-            awk -v section="$SECTION" -v content="$CONTENT" -v timestamp="$TIMESTAMP" '
+            awk -v section="$SECTION" -v title="$TITLE" -v contents="$CONTENTS" -v timestamp="$TIMESTAMP" '
+                BEGIN { in_section=0; inserted=0 }
                 $0 == "## " section {
                     print
-                    # Find the next section or end of file
-                    while ((getline line) > 0) {
-                        if (line ~ /^## /) {
-                            # Next section found, insert before it
-                            print "- " timestamp ": " content
-                            print line
-                            # Print rest of file
-                            while ((getline) > 0) print
-                            exit
-                        }
-                        print line
-                    }
-                    # End of file, insert content
-                    print "- " timestamp ": " content
-                    exit
+                    in_section=1
+                    next
+                }
+                /^## / && in_section && !inserted {
+                    print ""
+                    print "### Title: " title
+                    print "- time: " timestamp
+                    print "- Contents: " contents
+                    print ""
+                    inserted=1
+                    in_section=0
+                    print
+                    next
                 }
                 { print }
+                END {
+                    if (in_section && !inserted) {
+                        print ""
+                        print "### Title: " title
+                        print "- time: " timestamp
+                        print "- Contents: " contents
+                    }
+                }
             ' "$MEMORY_FILE" > "$TEMP_FILE"
             mv "$TEMP_FILE" "$MEMORY_FILE"
         else
-            # Section doesn't exist - create it at the end
-            echo "" >> "$MEMORY_FILE"
-            echo "## $SECTION" >> "$MEMORY_FILE"
-            echo "- $TIMESTAMP: $CONTENT" >> "$MEMORY_FILE"
+            {
+                echo ""
+                echo "## $SECTION"
+                echo "### Title: $TITLE"
+                echo "- time: $TIMESTAMP"
+                echo "- Contents: $CONTENTS"
+            } >> "$MEMORY_FILE"
         fi
 
-        echo "✓ Added to [$SECTION]: $CONTENT"
+        echo "✓ Added entry to [$SECTION]: $TITLE"
         ;;
 
     read)
@@ -105,14 +111,29 @@ case "$COMMAND" in
         KEYWORD="$2"
         rg -i "$KEYWORD" "$MEMORY_FILE" --no-ignore -A 2 -B 1 || echo "No matches found"
         ;;
+    tree)
+        python3 "$SCRIPT_DIR/md-index.py" --tree "$MEMORY_FILE"
+        ;;
+
+    section)
+        if [ $# -lt 2 ]; then
+            echo "Usage: long_term.sh section \"heading\"" >&2
+            exit 1
+        fi
+
+        HEADING="$2"
+        python3 "$SCRIPT_DIR/md-index.py" --section "$HEADING" "$MEMORY_FILE"
+        ;;
 
     *)
-        echo "Usage: long_term.sh {add|read|search}" >&2
+        echo "Usage: long_term.sh {add|read|search|tree|section}" >&2
         echo "" >&2
         echo "Commands:" >&2
         echo "  add \"section\" \"content\"  - Add content to a section" >&2
         echo "  read                        - Read entire MEMORY.md" >&2
         echo "  search \"keyword\"          - Search MEMORY.md" >&2
+        echo "  tree                        - Show heading tree of MEMORY.md" >&2
+        echo "  section \"heading\"         - Extract a section by heading" >&2
         exit 1
         ;;
 esac

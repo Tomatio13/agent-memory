@@ -99,19 +99,25 @@ v2.3.0を本番環境にデプロイ完了。
 
 ```bash
 # 追加
-~/.claude/skills/agent-memory/scripts/long_term.sh add "セクション名" "内容"
+~/.claude/skills/agent-memory/scripts/long_term.sh add "User Preferences" "TypeScript派" "TypeScriptを好む"
 
 # 読み取り
 ~/.claude/skills/agent-memory/scripts/long_term.sh read
 
 # 検索
 ~/.claude/skills/agent-memory/scripts/long_term.sh search "キーワード"
+
+# 見出しツリー
+~/.claude/skills/agent-memory/scripts/long_term.sh tree
+
+# セクション抽出
+~/.claude/skills/agent-memory/scripts/long_term.sh section "User Preferences"
 ```
 
 例:
 ```bash
 # 追加
-~/.claude/skills/agent-memory/scripts/long_term.sh add "User Preferences" "ユーザーはTypeScriptをJavaScriptより好む"
+~/.claude/skills/agent-memory/scripts/long_term.sh add "User Preferences" "TypeScript派" "ユーザーはTypeScriptをJavaScriptより好む"
 
 # 読み取り
 ~/.claude/skills/agent-memory/scripts/long_term.sh read

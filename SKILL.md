@@ -70,69 +70,50 @@ v2.3.0を本番環境にデプロイ完了。
 
 ## Operations
 
-### /log - 日次ログに記録
+### /agent-memory - 唯一のユーザー入力
 
-日次ログ（`memory/YYYY-MM-DD.md`）に時刻付きで記録します。
-
-**使用例:**
-- `/log API設計でRESTを採用することに決定`
-- `/log ユーザーはTypeScriptを好む`
-- `/log デプロイ時は必ずバックアップを作成`
-
-**実行方法:**
-```bash
-~/.agents/skills/agent-memory/scripts/daily_log.sh "記録内容"
-```
-
-### /remember - 長期メモリに保存
-
-長期メモリ（`MEMORY.md`）に構造化された情報を保存します。
+ユーザーは `/agent-memory (入力)` だけを使います。  
+内部では入力内容から「記録」か「検索（思い出す）」かを判断して処理します。
 
 **使用例:**
-- `/remember ユーザー設定: TypeScriptを好む、簡潔な説明を好む`
-- `/remember 重要決定: データベースはPostgreSQLを採用`
-- `/remember 連絡先: Alice (alice@acme.com) - デザインリード`
+- `/agent-memory API設計でRESTを採用`
+- `/agent-memory ユーザー設定: TypeScriptを好む`
+- `/agent-memory TypeScriptで何か決めたっけ？`
 
-**実行方法:**
+### 検索（思い出す）時の内部フロー
+
+ユーザーの質問で「思い出す」必要がある場合は、次の順で検索します。
+
+1. **長期メモリを md-index で探索**
+   - 見出しツリーを取得する
+   - 質問に最も関連する見出しを選び、セクション抽出する
+2. **日次ログ（`memory/YYYY-MM-DD.md`）を日付ファイル単位で検索**
+   - 直近の日付から順に検索し、該当があれば内容を確認
+
+**内部コマンド（ユーザーは使わない）:**
 ```bash
-~/.agents/skills/agent-memory/scripts/long_term.sh add "セクション名" "内容"
-```
+# 1) 長期メモリの見出しツリー
+~/.agents/skills/agent-memory/scripts/long_term.sh tree
 
-**主要セクション例:**
-- `User Preferences` - ユーザーの設定・偏好
-- `Important Decisions` - 重要な意思決定
-- `Key Contacts` - 重要な連絡先
-- `Project Context` - プロジェクトのコンテキスト
-- `Troubleshooting` - トラブルシューティングの記録
+# 2) 選んだ見出しを抽出
+~/.agents/skills/agent-memory/scripts/long_term.sh section "Selected Heading"
 
-### /recall - 記憶を検索
-
-メモリ全体からキーワード検索します。
-
-**使用例:**
-- `/recall TypeScript で何か決めたっけ？`
-- `/recall データベースの件`
-- `/recall APIのエンドポイント`
-
-**実行方法:**
-```bash
-# 全体検索
-~/.agents/skills/agent-memory/scripts/search.sh "キーワード"
-
-# 日次ログのみ
+# 3) 日次ログの検索
 ~/.agents/skills/agent-memory/scripts/search.sh "キーワード" --daily
-
-# 長期メモリのみ
-~/.agents/skills/agent-memory/scripts/search.sh "キーワード" --long
 ```
 
-### /organize - メモリの整理
+### 長期メモリの記録フォーマット
 
-長期メモリを読み取り、必要に応じて整理・編集します。
+```
+## User Preferences
+### Title: ほにゃらららー
+- time: 2026/01/28 11:32
+- Contents: ぷりぷりぷー 
 
-**実行方法:**
-```bash
-~/.agents/skills/agent-memory/scripts/long_term.sh read
+## Project Context
+### Title: Clawdbot Memoryスキルを作成
+- time: 2026/01/29 23:29
+- Contents: 2層メモリシステムを実装: Layer1に日次ログ(memory/YYYY-MM-DD.md)、Layer2に長期メモリ(MEMORY.md)。3つの運用スクリプト(daily_log.sh, long_term.sh, search.sh)とシンボリックリンク(~/.claude/skills/clawdbot-memory)を配置
 ```
 
 ## Search Workflow
@@ -140,13 +121,14 @@ v2.3.0を本番環境にデプロイ完了。
 効率的な検索のためのワークフロー：
 
 ```bash
-# 1. 今日と昨日の日次ログを確認
+# 1. 長期メモリを md-index で探索（見出しツリー→セクション抽出）
+~/.agents/skills/agent-memory/scripts/long_term.sh tree
+~/.agents/skills/agent-memory/scripts/long_term.sh section "Selected Heading"
+
+# 2. 日次ログを日付ファイル単位で検索
 ~/.agents/skills/agent-memory/scripts/search.sh "キーワード" --daily
 
-# 2. 長期メモリを検索
-~/.agents/skills/agent-memory/scripts/search.sh "キーワード" --long
-
-# 3. 全体検索（上記で見つからない場合）
+# 3. それでも見つからない場合は全体検索
 ~/.agents/skills/agent-memory/scripts/search.sh "キーワード" --all
 ```
 
@@ -180,7 +162,7 @@ v2.3.0を本番環境にデプロイ完了。
 User: 「僕はTypeScript派なんだよね」
 Agent: 了解しました。記録します。
 [実行] daily_log.sh "ユーザーはTypeScriptを好む"
-[実行] long_term.sh add "User Preferences" "Prefers TypeScript over JavaScript"
+[実行] long_term.sh add "User Preferences" "TypeScript派" "Prefers TypeScript over JavaScript"
 ```
 
 ### 例2: 意思決定を記録
@@ -189,7 +171,7 @@ Agent: 了解しました。記録します。
 User: 「APIはRESTで行こう」
 Agent: 了解しました。記録します。
 [実行] daily_log.sh "API設計: RESTを採用決定"
-[実行] long_term.sh add "Important Decisions" "2026-01-28: Adopted REST over GraphQL for API"
+[実行] long_term.sh add "Important Decisions" "RESTを採用" "2026-01-28: Adopted REST over GraphQL for API"
 ```
 
 ### 例3: 過去の記憶を検索
@@ -200,4 +182,3 @@ Agent: 記憶を検索します。
 [実行] search.sh "database" --all
 [結果] PostgreSQLを選択
 ```
-
